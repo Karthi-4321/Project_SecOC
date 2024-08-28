@@ -1,0 +1,147 @@
+﻿/*@!Encoding:65001*/
+
+/**
+ * @file
+ * @brief CAPL script to verify CMAC for SCC12 messages and manage ABS11 messages and visibility.
+ */
+
+includes
+{
+    // Include any required headers or libraries here.
+}
+
+variables
+{
+    /// Payload buffer for storing message data.
+    byte payload[8];
+
+    /// Buffer for storing CMAC value.
+    qword cmacBuffer;
+
+    /// Timer for periodic ABS11 message updates.
+    msTimer msTimerEvent;
+
+    /// ABS11 message PDU for outputting data.
+    message ABS11 ABS11pdu;
+}
+
+/**
+ * @brief Verify the CMAC value for the received message payload.
+ * 
+ * @return Result of the CMAC verification (1 for success, 0 for failure).
+ */
+qword verifyCMAC()
+{
+    long bytesCopied = 0;
+    dword cmacBitLength = 24;
+    dword freshnessTxBitLength = 8;
+    dword result = 0;
+
+    qword freshnessCopy;
+    freshnessCopy = payload[4];
+
+    // Log the received CMAC and freshness values.
+    Write("ABS CMAC received: %I64x, freshness: %llu", cmacBuffer, freshnessCopy);
+
+    // Verify the CMAC using the security module.
+    LocalSecurityVerifyAuthenticationInformation(11, payload, 5, cmacBuffer, cmacBitLength, 
+        (freshnessCopy & 0x08), 8, freshnessCopy, 56, result);
+
+    // Log and update the verification result.
+    if (result)
+    {
+        Write("ABS CMAC verification successful: %d", result); 
+        @`ABS::CMACVerificationResult = 1;
+    }
+    else
+    {
+        Write("ABS CMAC verification failed: %d", result); 
+        @`ABS::CMACVerificationResult = 0;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Handle incoming SCC12 messages, verify CMAC, and update ABS11 message and control visibility.
+ */
+on message SCC12
+{
+    qword cmacVerResult;
+
+    if (@SV_SCC::EnableSecurity == 1)
+    {
+        // Copy data from SCC12 message into the payload buffer.
+        int index;
+        for (index = 0; index < 5; index++)
+        {
+            payload[index] = this.byte(index);
+        }
+
+        // Store the received CMAC value.
+        cmacBuffer = this.scc12_cmac;
+
+        // Verify the CMAC and update control visibility based on verification result.
+        cmacVerResult = verifyCMAC();
+        setControlVisibility("ECUs_ON_BUS", "Yes", 1);
+        setControlVisibility("ECUs_ON_BUS", "No", 0);
+    }
+    else
+    {
+        // If security is not enabled, set the CMAC verification result to 2.
+        @`ABS::CMACVerificationResult = 2;
+        setControlVisibility("ECUs_ON_BUS", "Yes", 0);
+        setControlVisibility("ECUs_ON_BUS", "No", 1);
+    }
+
+    // Update ABS11 data based on the SCC12 message content if verification was successful or security is disabled.
+    if (@SV_SCC::EnableSecurity == 0 || cmacVerResult == 1)
+    {
+        @`ABS::CF_VSM_DecCMD = this.CF_VSM_DecCmdAct;
+        @`ABS::CF_VSM_Prefill = this.CF_VSM_Prefill;
+        @`ABS::ACCFailINfo = this.ACCFailInfo;
+        @`ABS::ACCMode = this.ACCMode;
+        @`ABS::AEB_StopReq = this.AEB_StopReq;
+        @`ABS::AEB_CMDAct = this.AEB_CmdAct;
+        @`ABS::aReqMax = this.aReqMax;
+        @`ABS::aReqMin = this.aReqMin;
+    }
+
+    @`ABS::Freshness = this.scc12_freshness_value; 
+    @`ABS::CMAC = this.scc12_cmac;
+}
+
+/**
+ * @brief Timer event handler for updating ABS11 message and control visibility.
+ */
+on timer msTimerEvent
+{
+    if (@`ABS::AEB_CMDAct == 1)
+    {
+        ABS11pdu.ABS_W_LAMP = 1;
+        ABS11pdu.ABS_ACT = 1;
+        setControlVisibility("DashBoard", "AEBWarning", 1);
+        setControlVisibility("ECUs_ON_BUS", "BrakeActive", 1);
+    }
+    else
+    {
+        ABS11pdu.ABS_W_LAMP = 0;
+        ABS11pdu.ABS_ACT = 0;
+        setControlVisibility("DashBoard", "AEBWarning", 0);
+        setControlVisibility("ECUs_ON_BUS", "BrakeActive", 0);
+    }
+
+    // Output the updated ABS11 message PDU.
+    output(ABS11pdu);
+
+    // Set the timer for the next event.
+    setTimer(msTimerEvent, 100);
+}
+
+/**
+ * @brief Initialization event, sets up the timer for periodic updates.
+ */
+on start
+{
+    setTimer(msTimerEvent, 100);
+}

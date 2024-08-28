@@ -1,0 +1,101 @@
+﻿/*@!Encoding:65001*/
+
+/**
+ * @file
+ * @brief CAPL script to control vehicle speed and manage message outputs for different ECUs.
+ */
+
+includes
+{
+    // Include any required headers or libraries here.
+}
+
+variables
+{
+    /// Timer for periodic vehicle speed control and message output.
+    msTimer msTimerEvent;
+
+    /// Current vehicle speed.
+    int64 vehicleSpeed = 0;
+
+    /// Adaptive Cruise Control (ACC) status.
+    int64 accStatus = 0;
+
+    /// Set speed for the ACC.
+    int64 accSetSpeed = 120;
+
+    /// Cluster message PDU.
+    message CLU15 Cluser15Pdu;
+
+    /// Transmission Control Unit (TCU) message PDU.
+    message TCU_DCT13 TCU_DCT13Pdu;
+
+    /// Anti-lock Braking System (ABS) message PDU.
+    message ABS11 ABS11Pdu;
+}
+
+/**
+ * @brief Timer event handler for controlling vehicle speed and outputting messages.
+ */
+on timer msTimerEvent
+{
+    CtrlACCVehicleSpeed();
+
+    // Update the Cluster15 and TCU_DCT13 message PDUs with the current vehicle speed.
+    Cluser15Pdu.CF_Clu_VehicleSpeed = vehicleSpeed;
+    TCU_DCT13Pdu.Cluster_Engine_RPM = vehicleSpeed * 25;
+
+    // Output the updated messages.
+    output(Cluser15Pdu);
+    output(TCU_DCT13Pdu);
+
+    // Set the timer for the next event.
+    setTimer(msTimerEvent, 100);
+}
+
+/**
+ * @brief Adjust the vehicle speed based on the set speed for ACC.
+ */
+void CtrlACCVehicleSpeed()
+{
+    // Increase the vehicle speed if it's below the set speed.
+    if (vehicleSpeed < accSetSpeed)
+    {
+        vehicleSpeed++;
+    }
+    // Decrease the vehicle speed if it's above the set speed.
+    else if (vehicleSpeed > accSetSpeed)
+    {
+        vehicleSpeed -= 10;
+    }
+
+    // Ensure the vehicle speed does not drop below zero.
+    if (vehicleSpeed < 0)
+    {
+        vehicleSpeed = 0;
+    }
+}
+
+/**
+ * @brief Initialization event, sets up the timer for periodic events.
+ */
+on start
+{
+    setTimer(msTimerEvent, 100);
+}
+
+/**
+ * @brief Message handler for ABS11 messages to update ACC set speed.
+ */
+on message ABS11
+{
+    // Update the ACC set speed based on the ABS activation status.
+    if (this.ABS_ACT == 1)
+    {
+        accSetSpeed = 0;
+    }
+    else
+    {
+        accSetSpeed = 120;
+    }
+}

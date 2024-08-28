@@ -1,0 +1,184 @@
+﻿/*@!Encoding:65001*/
+
+/**
+ * @file
+ * @brief CAPL script to manage Secure Onboard Communication (SecOC) and signal visibility.
+ */
+
+includes
+{
+    // Include any required headers or libraries here.
+}
+
+variables
+{
+    /// Timer for transmitting SCC12 PDU.
+    msTimer msTimerEvent;
+
+    /// Timer for controlling signal visibility.
+    msTimer msTimerEvent2;
+
+    /// SCC12 message PDU.
+    message SCC12 scc12Pdu;
+
+    /// Freshness counter for SecOC.
+    qword freshnessCopy = 0;
+
+    /// Counter for signal visibility control.
+    int sigVisiblecount = 0;
+
+    /// Flag indicating whether SCC12 transmission was triggered.
+    int scc12TxTriggered = 0;
+}
+
+/**
+ * @brief Calculate the freshness and CMAC for the SCC12 message.
+ */
+void calculateFreshnessCMAC()
+{
+    long bytesCopied = 0;
+    dword cmacBitLength = 24;
+    dword freshnessTxBitLength = 8;
+    dword result = 0;
+    byte payload[5];
+    byte cmacResult[3];
+    qword cmacBuffer;
+    int index;
+
+    // Update freshness value if FreezeFreshness is not set.
+    if (@SV_SCC::FreezeFreshness == 0)
+    {
+        freshnessCopy++;
+    }
+    scc12Pdu.scc12_freshness_value = freshnessCopy;
+    @SV_SCC::Freshness = freshnessCopy;
+    // Copy the SCC12 PDU into the payload buffer.
+    for (index = 0; index < 5; index++)
+    {
+        payload[index] = scc12Pdu.byte(index);
+    }
+
+    // Calculate the CMAC using the security module.
+    LocalSecurityCalculateAuthenticator(11, payload, 5, cmacBuffer, cmacBitLength, freshnessCopy, freshnessTxBitLength, 56);
+    scc12Pdu.scc12_cmac = cmacBuffer;
+    @SV_SCC::CMAC = cmacBuffer;
+
+    // Log the payload, freshness, and CMAC values.
+    Write("SCC Payload data: %d, %d, %d, %d, %d, freshness: %llu, CMAC: %llu",
+          payload[0], payload[1], payload[2], payload[3], payload[4], freshnessCopy, cmacBuffer);
+}
+
+/**
+ * @brief Transmit the SCC12 PDU with updated values.
+ */
+void TransmitSCC12PDU()
+{
+    @SV_SCC::AEB_STOPReq = 0;
+
+    // Update SCC12 PDU fields based on AEB activation status.
+    if (@SV_SCC::ActivateAEB == 1)
+    {
+        @SV_SCC::AEB_CMDACT = 1;
+        @SV_SCC::CF_VSM_DecCMD = 1;
+        @SV_SCC::CF_VSM_Prefil = 1;
+        @SV_SCC::ACCFailInfo = 2;
+        @SV_SCC::ACCmode = 0;
+    }
+    else
+    {
+        @SV_SCC::AEB_CMDACT = 0;
+        @SV_SCC::CF_VSM_DecCMD = 0;
+        @SV_SCC::CF_VSM_Prefil = 0;
+        @SV_SCC::ACCFailInfo = 0;
+        @SV_SCC::ACCmode = 1;
+    }
+
+    // Assign PDU values based on signal values.
+    scc12Pdu.AEB_CmdAct = @SV_SCC::AEB_CMDACT;
+    scc12Pdu.CF_VSM_DecCmdAct = @SV_SCC::CF_VSM_DecCMD;
+    scc12Pdu.CF_VSM_Prefill = @SV_SCC::CF_VSM_Prefil;
+    scc12Pdu.ACCFailInfo = @SV_SCC::ACCFailInfo;
+    scc12Pdu.ACCMode = @SV_SCC::ACCmode;
+    scc12Pdu.AEB_StopReq = @SV_SCC::AEB_STOPReq;
+
+    // Calculate the required maximum acceleration.
+    @SV_SCC::aReqMax++;
+    scc12Pdu.aReqMax = (@SV_SCC::aReqMax + 10.23) * 0.01;
+
+    // If security is enabled, calculate freshness and CMAC.
+    if (@SV_SCC::EnableSecurity == 1)
+    {
+        calculateFreshnessCMAC();
+    }
+    else
+    {
+        scc12Pdu.scc12_cmac = 0;
+        scc12Pdu.scc12_freshness_value = 0;
+    }
+
+    // Transmit the SCC12 PDU.
+    output(scc12Pdu);
+    scc12TxTriggered = 1;
+}
+
+/**
+ * @brief Timer event handler for SCC12 PDU transmission.
+ */
+on timer msTimerEvent
+{
+    TransmitSCC12PDU();
+    setTimer(msTimerEvent, 200);
+}
+
+/**
+ * @brief Timer event handler for controlling signal visibility.
+ */
+on timer msTimerEvent2
+{
+    sigVisiblecount++;
+
+    // Control signal visibility based on transmission and spoofing status.
+    if (scc12TxTriggered == 1)
+    {
+        if (sigVisiblecount == 1)
+        {
+            setControlVisibility("ECUs_ON_BUS", "greenSig1", 1);
+            setControlVisibility("ECUs_ON_BUS", "greenSig2", 0);
+            setControlVisibility("ECUs_ON_BUS", "redsignal", 0);
+        }
+        else if (sigVisiblecount == 2)
+        {
+            if (@Attacker::SpoofMsg)
+            {
+                setControlVisibility("ECUs_ON_BUS", "greenSig1", 0);
+                setControlVisibility("ECUs_ON_BUS", "greenSig2", 0);
+                setControlVisibility("ECUs_ON_BUS", "redsignal", 1);
+            }
+            else
+            {
+                setControlVisibility("ECUs_ON_BUS", "greenSig1", 0);
+                setControlVisibility("ECUs_ON_BUS", "greenSig2", 1);
+                setControlVisibility("ECUs_ON_BUS", "redsignal", 0);
+            }
+            scc12TxTriggered = 0;
+            sigVisiblecount = 0;
+        }
+    }
+    else
+    {
+        setControlVisibility("ECUs_ON_BUS", "greenSig1", 0);
+        setControlVisibility("ECUs_ON_BUS", "greenSig2", 0);
+        setControlVisibility("ECUs_ON_BUS", "redsignal", 0);
+    }
+
+    setTimer(msTimerEvent2, 1000);
+}
+
+/**
+ * @brief Initialization event, sets up timers for events.
+ */
+on start
+{
+    setTimer(msTimerEvent, 200);
+    setTimer(msTimerEvent2, 1000);
+}

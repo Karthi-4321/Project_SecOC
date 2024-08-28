@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<Panel Type="Vector.CANalyzer.Panels.PanelSerializer, Vector.CANalyzer.Panels.Serializer, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null">
+  <Object Type="Vector.CANalyzer.Panels.Runtime.Panel, Vector.CANalyzer.Panels.Common, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null" Name="Panel" Children="Controls" ControlName="DashBoard">
+    <Object Type="Vector.CANalyzer.Panels.Design.PictureBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null" Name="PictureBoxControl2" ControlName="AEBWarning">
+      <Property Name="Name">PictureBoxControl2</Property>
+      <Property Name="Size">49, 29</Property>
+      <Property Name="Location">286, 164</Property>
+      <Property Name="ImageFile">forward-collision-warning.jpg</Property>
+      <Property Name="IsVisibleByLoad">False</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StartStopControl, Vector.CANalyzer.Panels.CommonControls, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null" Name="StartStopControl1" Children="Controls" ControlName="Start Stop Control 1">
+      <Property Name="Name">StartStopControl1</Property>
+      <Property Name="Size">114, 58</Property>
+      <Property Name="Location">471, 43</Property>
+      <Property Name="BorderStyle">FixedSingle</Property>
+      <Property Name="TabIndex">3</Property>
+      <Property Name="TabStopActive">False</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.MeterControl, Vector.CANalyzer.Panels.CommonControls, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null" Name="MeterControl2" ControlName="Meter 2">
+      <Property Name="Name">MeterControl2</Property>
+      <Property Name="Size">77, 62</Property>
+      <Property Name="Location">352, 183</Property>
+      <Property Name="ScaleMax">6500</Property>
+      <Property Name="SymbolConfiguration">8;2;hyundai_ccan;TCU;TCU_DCT13;Cluster_Engine_RPM;1;CAN;;-1;;;;;;0</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.MeterControl, Vector.CANalyzer.Panels.CommonControls, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null" Name="MeterControl1" ControlName="Meter 1">
+      <Property Name="Name">MeterControl1</Property>
+      <Property Name="Size">91, 68</Property>
+      <Property Name="Location">183, 179</Property>
+      <Property Name="ScaleMax">215</Property>
+      <Property Name="SweepAngleFrom">-125</Property>
+      <Property Name="SweepAngleTo">125</Property>
+      <Property Name="SymbolConfiguration">8;2;hyundai_ccan;CLU;CLU15;CF_Clu_VehicleSpeed;1;CAN;;-1;;;;;;0</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.PictureBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=17.3.91.0, Culture=neutral, PublicKeyToken=null" Name="PictureBoxControl1" ControlName="Picture Box 1">
+      <Property Name="Name">PictureBoxControl1</Property>
+      <Property Name="Size">539, 320</Property>
+      <Property Name="Location">43, 43</Property>
+      <Property Name="ImageFile">sonata_performance-2_f9.jpg</Property>
+    </Object>
+    <Property Name="Name">Panel</Property>
+    <Property Name="Size">622, 382</Property>
+    <Property Name="BackColor">White</Property>
+  </Object>
+</Panel>
